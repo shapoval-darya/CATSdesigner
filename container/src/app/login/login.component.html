@@ -18,10 +18,13 @@
 					<h1 class="title">Добро пожаловать!</h1>
 					<div class="fields">
 						<mat-form-field class="default" color="primary">
-							<input matInput color="primary" formControlName="userName" placeholder="Имя пользователя" type="text" required>
+							<input matInput color="primary" formControlName="userName" placeholder="Имя пользователя" type="text">
 						</mat-form-field>
 						<mat-form-field>
-							<input matInput color="primary" type="password" placeholder="Пароль" formControlName="password" required>
+							<input matInput [type]="hide ? 'password' : 'text'" color="primary" type="password" placeholder="Пароль" formControlName="password">
+							<button mat-icon-button matSuffix (click)="hide = !hide">
+								<mat-icon> {{hide ? 'visibility_off' : 'visibility'}}</mat-icon>
+							</button>
 						</mat-form-field>
 					</div>
 
