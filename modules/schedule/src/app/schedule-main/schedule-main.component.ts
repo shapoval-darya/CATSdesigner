@@ -1,11 +1,17 @@
 import { Component, OnInit } from '@angular/core';
 import {ChangeDetectionStrategy} from '@angular/core';
 import { Subject } from 'rxjs';
-import {CalendarEvent, CalendarEventAction, CalendarView} from 'angular-calendar';
+import {CalendarEvent, CalendarEventAction, CalendarEventTimesChangedEvent, CalendarView} from 'angular-calendar';
 import {Lesson} from '../model/lesson.model';
 import {LessonService} from '../service/lesson.service';
+import {AddNoteComponent} from '../modal/add-note/add-note.component';
+import {Note} from '../model/note.model';
 import {NoteService} from '../service/note.service';
 import {MatDialog} from '@angular/material';
+import {NewsService} from '../service/news.service';
+import {Overlay} from '@angular/cdk/overlay';
+import {Message} from '../../../../../container/src/app/core/models/message';
+import {CreateLessonComponent} from '../modal/create-lesson/create-lesson.component';
 
 
 const colors: any = {
@@ -33,19 +39,17 @@ export class ScheduleMainComponent implements OnInit {
     }
   ];
 
-
   startTimes: string[] = [' 08:00', ' 09:55', ' 11:40', ' 13:15'];
   endTimes: string[] = [' 09:35', ' 11:30', ' 13:15', ' 15:00'];
   locale = 'ru';
-
   lessons: Lesson[] = [];
+  subjects: any[] = [];
+  notes: Note[] = [];
   lesson: Lesson = new Lesson();
   view: CalendarView = CalendarView.Week;
-
   CalendarView = CalendarView;
-
   viewDate: Date = new Date();
-
+  user: any;
   modalData: {
     action: string;
     event: CalendarEvent;
@@ -57,66 +61,77 @@ export class ScheduleMainComponent implements OnInit {
 
   activeDayIsOpen = true;
 
-  constructor(private lessonservice: LessonService) {}
+  constructor(private lessonservice: LessonService,
+              private noteService: NoteService,
+              private newsService: NewsService,
+              private overlay: Overlay,
+              private dialog: MatDialog ) {}
 
   ngOnInit() {
-      const user = JSON.parse(localStorage.getItem('currentUser'));
-      this.lessonservice.getAllLessons(user.userName).subscribe(les => {
-        let i = 0;
-        les.Labs.forEach(lab => {
-          const splitted = lab.title.split(' ', 4);
-          this.lesson.shortname = splitted[0].trim();
-          this.lesson.type = splitted[3].trim();
-          this.lesson.color = lab.color;
-          this.lesson.start = new Date(lab.start + this.startTimes[i]);
-          this.lesson.end = new Date(lab.start + this.endTimes[i]);
-          this.lesson.id = lab.id;
-          this.lesson.teacher = 'Попова Ю.Б.';
-          this.lesson.building = '11';
-          this.lesson.classroom = '110';
-          this.lessons.push(this.lesson);
-          this.lesson = new Lesson();
-          i++;
-          if ( i === 4) {
-            i = 0;
-          }
-        });
-        i = 0;
-        les.Lect.forEach(lect => {
-          const splitted = lect.title.split(' ', 4);
-          this.lesson.shortname = splitted[0].trim();
-          this.lesson.type = splitted[3].trim();
-          this.lesson.color = lect.color;
-          this.lesson.start = new Date(lect.start + this.startTimes[i]);
-          this.lesson.end = new Date(lect.start + this.endTimes[i]);
-          this.lesson.id = lect.id;
-          this.lesson.teacher = 'Попова Ю.Б.';
-          this.lesson.building = '11';
-          this.lesson.classroom = '110';
-          this.lessons.push(this.lesson);
-          this.lesson = new Lesson();
-          i++;
-          if ( i === 4) {
-            i = 0;
-          }
-        });
-        console.log(this.lessons);
-        this.lessons.forEach(lesson => {
-          this.events.push({
-            id: lesson.id,
-            start: lesson.start,
-            end: lesson.end,
-            title: this.calculateTitel(lesson),
-            color: colors.color,
-            resizable: {
-              beforeStart: false,
-              afterEnd: false,
-            },
-            draggable: false,
-            meta: 'lesson'
-          });
+    /*localStorage.setItem('currentUser', JSON.stringify({id: 10031, role: 'lector', userName: 'popova'}));*/
+    this.user = JSON.parse(localStorage.getItem('currentUser'));
+    this.lessonservice.getAllLessons(this.user.userName).subscribe(les => {
+      let i = 0;
+      les.Labs.forEach(lab => {
+        lab.title = lab.title.replace('  ', ' ');
+        this.lesson = this.createLesson(lab, i);
+        this.lessons.push(this.lesson);
+        i++;
+        if ( i === 4) {
+          i = 0;
+        }
+      });
+      i = 0;
+      les.Lect.forEach(lect => {
+        lect.title = lect.title.replace('  ', ' ');
+        this.lesson = this.createLesson(lect, i);
+        this.lessons.push(this.lesson);
+        i++;
+        if ( i === 4) {
+          i = 0;
+        }
+      });
+      this.lessons.forEach(lesson => {
+        this.events.push({
+          id: lesson.id,
+          start: lesson.start,
+          end: lesson.end,
+          title: this.calculateTitel(lesson),
+          color: colors.color,
+          resizable: {
+            beforeStart: false,
+            afterEnd: false,
+          },
+          draggable: false,
+          meta: 'lesson'
         });
       });
+
+      this.lessonservice.getAllSubjects(this.user.userName).subscribe(subjects => {
+        this.subjects = subjects;
+        this.refresh.next();
+      });
+
+    });
+    /*this.noteService.getNotes().subscribe(notes => {
+      this.notes = notes;
+      notes.forEach(note => {
+        this.events.push({
+          id: note.id,
+          start: note.start,
+          end: note.end,
+          title: note.title,
+          color: colors.color,
+          actions: this.actions,
+          resizable: {
+            beforeStart: true,
+            afterEnd: true,
+          },
+          draggable: true,
+          meta: 'note'
+        });
+      });
+    });*/
   }
 
   // tslint:disable-next-line:typedef
@@ -128,6 +143,18 @@ export class ScheduleMainComponent implements OnInit {
   closeOpenMonthViewDay() {
     this.activeDayIsOpen = false;
   }
+  /*
+    getEventsById(id: string): any {
+      return this.events.find((event) => {
+        return event.id === id;
+      });
+    }
+
+    getLessonById(id: string): any {
+      return this.lessons.find((lesson) => {
+        return lesson.id === id;
+      });
+    }*/
 
   calculateTitel(lesson: Lesson): any {
     let minS;
@@ -144,7 +171,8 @@ export class ScheduleMainComponent implements OnInit {
       +  lesson.end.getHours() + ':' + minE
       + '|a.' + lesson.classroom + '|к.' + lesson.building
       + '|' + lesson.shortname + '|' + lesson.type
-      + '|' + lesson.teacher  + '|' + lesson.color;
+      + '|' + lesson.teacher  + '|' + lesson.color
+      + '|' + lesson.subjectId;
   }
 
   getTime(title: string): any {
@@ -167,6 +195,8 @@ export class ScheduleMainComponent implements OnInit {
     return ' ' + splitted[4] + ' ';
   }
 
+
+
   getThirdString(title: string): any {
     const splitted = title.split('|', 6);
     return splitted[5] ;
@@ -175,5 +205,125 @@ export class ScheduleMainComponent implements OnInit {
   getColor(title: string): any {
     const splitted = title.split('|', 7);
     return splitted[6] ;
+  }
+
+  getReferenceToSubject(title: string): any {
+    const splitted = title.split('|', 8);
+    return '/Subject?subjectId=' + splitted[7] ;
+  }
+
+  // tslint:disable-next-line:typedef
+  addNote() {
+    const dialogRef = this.dialog.open(AddNoteComponent, {width: '300px'});
+    dialogRef.afterClosed().subscribe(result => {
+      if (result != null) {
+        this.notes.push(result);
+        this.events = [
+          ...this.events,
+          {
+            id: result.id,
+            start: result.start,
+            end: result.end,
+            title: result.title,
+            color: colors.color,
+            actions: this.actions,
+            draggable: true,
+            resizable: {
+              beforeStart: true,
+              afterEnd: true
+            },
+            meta: 'note'
+          }
+        ];
+      }
+      this.refresh.next();
+    });
+  }
+
+  isLesson(event): boolean {
+    return event.meta === 'lesson';
+  }
+
+  isNote(event): boolean {
+    return event.meta === 'note';
+  }
+
+  eventTimesChanged({
+                      event,
+                      newStart,
+                      newEnd
+                    }: CalendarEventTimesChangedEvent): void {
+    this.events = this.events.map(iEvent => {
+      if (iEvent === event) {
+        return {
+          ...event,
+          start: newStart,
+          end: newEnd
+        };
+      }
+      return iEvent;
+    });
+  }
+
+  addZerros(segment): any {
+    return  segment.date.getHours() + ':00';
+  }
+
+  public rerouteToSubject(title: string) {
+    const message: Message = new Message();
+    message.Value = this.getReferenceToSubject(title);
+    message.Type = 'Route';
+    this.sendMessage(message);
+  }
+
+  public sendMessage(message: Message): void {
+    window.parent.postMessage([{channel: message.Type, value: message.Value}], '*');
+  }
+
+  getToolTip(title: string): any {
+    const splitted = title.split('|', 8);
+    return this.subjects.find(subject => subject.Id == splitted[7]).Name;
+  }
+
+  hourClick() {
+    if (this.user.role === 'lector') {
+      const dialogRef = this.dialog.open(CreateLessonComponent, {width: '300px', data: {userName: this.user.userName}});
+      dialogRef.afterClosed().subscribe(result => {
+        if (result != null) {
+          this.lesson = this.createLesson(result, 0);
+          this.lessons.push(this.lesson);
+          this.events.push({
+            id: this.lesson.id,
+            start: this.lesson.start,
+            end: this.lesson.end,
+            title: this.calculateTitel(this.lesson),
+            color: colors.color,
+            resizable: {
+              beforeStart: false,
+              afterEnd: false,
+            },
+            draggable: false,
+            meta: 'lesson'
+          });
+          this.refresh.next();
+        }
+      });
+    }
+  }
+
+  createLesson(les: any, i: number): Lesson {
+    const lesson: Lesson = new Lesson();
+    const splitted = les.title.split(' ', 3);
+    lesson.shortname = splitted[0].trim();
+    lesson.type = splitted[2].trim();
+    lesson.color = les.color;
+    lesson.start = new Date(les.start + this.startTimes[i]);
+    lesson.end = new Date(les.start + this.endTimes[i]);
+    lesson.id = les.id;
+    lesson.teacher = 'Попова Ю.Б.';
+    lesson.building = '11';
+    lesson.classroom = '110';
+    lesson.subjectId = les.subjectId;
+    return lesson;
   }
 }

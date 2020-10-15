@@ -16,14 +16,19 @@ import localeRu from '@angular/common/locales/ru';
 import {HttpClientModule} from '@angular/common/http';
 import {DateFormatterParams} from 'angular-calendar';
 import {MatDialogModule} from '@angular/material/dialog';
-
+import {AddNoteComponent} from './modal/add-note/add-note.component';
+import {MatTooltipModule} from '@angular/material/tooltip';
+import { CreateLessonComponent } from './modal/create-lesson/create-lesson.component';
+import { ReactiveFormsModule } from '@angular/forms';
+import {MatSelectModule} from '@angular/material/select';
+import {MatInputModule} from '@angular/material/input';
 registerLocaleData(localeRu);
 
 class CustomDateFormatter extends CalendarNativeDateFormatter {
-  public dayViewHour({ date, locale }: DateFormatterParams): string {
-    return new Intl.DateTimeFormat('en-US', {
+  public dayViewHour({date, locale}: DateFormatterParams): string {
+    return new Intl.DateTimeFormat('ca', {
       hour: 'numeric',
-      minute: 'numeric', hour12: false
+      minute: 'numeric'
     }).format(date);
   }
 }
@@ -32,6 +37,8 @@ class CustomDateFormatter extends CalendarNativeDateFormatter {
   declarations: [
     AppComponent,
     ScheduleMainComponent,
+    AddNoteComponent,
+    CreateLessonComponent
   ],
   imports: [
     BrowserModule,
@@ -42,7 +49,10 @@ class CustomDateFormatter extends CalendarNativeDateFormatter {
     AppRoutingModule,
     MatDialogModule,
     HttpClientModule,
+    MatInputModule,
+    MatTooltipModule,
     MatFormFieldModule,
+    ReactiveFormsModule,
     FlatpickrModule.forRoot(),
     CalendarModule.forRoot({
       provide: DateAdapter,
@@ -53,11 +63,12 @@ class CustomDateFormatter extends CalendarNativeDateFormatter {
         useClass: CustomDateFormatter
       }
     }),
+    MatSelectModule,
   ],
   providers: [],
-  exports: [AppComponent],
+  exports: [AppComponent, MatTooltipModule],
   bootstrap: [AppComponent],
-  entryComponents: []
+  entryComponents: [AddNoteComponent, CreateLessonComponent]
 })
 export class AppModule {
 
